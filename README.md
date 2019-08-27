@@ -240,7 +240,7 @@ kube-controller-manager leader information:
 Shows details about a resource and formats and prints this information on multiple lines.
 
 ```sh
-kbk describe <resource-kind> <name> [namespace]
+kbk describe <resource-kind> <name> [-n namespace]
 ```
 
 ```sh
