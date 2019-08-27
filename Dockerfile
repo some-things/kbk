@@ -14,7 +14,9 @@ RUN \
   python get-pip.py && \
   pip install yq
 
-ADD kbk.sh /usr/local/bin/kbk
-ADD .bashrc /root/.bashrc
+ADD https://raw.githubusercontent.com/some-things/kbk/master/kbk.sh /usr/local/bin/kbk
+ADD https://raw.githubusercontent.com/some-things/kbk/master/.bashrc /root/.bashrc
+
+RUN chmod +x /usr/local/bin/kbk
 
 CMD ["/bin/bash"]
