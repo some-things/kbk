@@ -21,6 +21,18 @@
       - [`checks`](#checks)
     - [Miscellaneous](#miscellaneous)
       - [`extract`](#extract)
+  - [Troubleshooting with `kbk`](#troubleshooting-with-kbk)
+    - [Clusters](#clusters)
+      - [Specific scenarios](#specific-scenarios)
+    - [Applications](#applications)
+      - [Debugging Pods](#debugging-pods)
+        - [My pod stays pending](#my-pod-stays-pending)
+        - [My pod stays waiting](#my-pod-stays-waiting)
+        - [My pod is crashing or otherwise unhealthy](#my-pod-is-crashing-or-otherwise-unhealthy)
+      - [Debugging Replication Controllers](#debugging-replication-controllers)
+      - [Debugging Services](#debugging-services)
+        - [My service is missing endpoints](#my-service-is-missing-endpoints)
+        - [Network traffic is not forwarded](#network-traffic-is-not-forwarded)
 
 ## Summary
 
@@ -77,6 +89,7 @@ kbk --help
 ```
 
 ## Environment Variables
+
 `kbk` supports the following environment variables:
 
 |Variable|Default|Description|
@@ -139,27 +152,27 @@ DESCRIPTION:
      the proxy.
 
 FIELDS:
-   apiVersion	<string>
+   apiVersion <string>
      APIVersion defines the versioned schema of this representation of an
      object. Servers should convert recognized schemas to the latest internal
      value, and may reject unrecognized values. More info:
      https://git.k8s.io/community/contributors/devel/api-conventions.md#resources
 
-   kind	<string>
+   kind <string>
      Kind is a string value representing the REST resource this object
      represents. Servers may infer this from the endpoint the client submits
      requests to. Cannot be updated. In CamelCase. More info:
      https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds
 
-   metadata	<Object>
+   metadata <Object>
      Standard object's metadata. More info:
      https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata
 
-   spec	<Object>
+   spec <Object>
      Spec defines the behavior of a service.
      https://git.k8s.io/community/contributors/devel/api-conventions.md#spec-and-status
 
-   status	<Object>
+   status <Object>
      Most recently observed status of the service. Populated by the system.
      Read-only. More info:
      https://git.k8s.io/community/contributors/devel/api-conventions.md#spec-and-status
@@ -363,3 +376,150 @@ Extracting bundle to /Users/dn/Documents/logs/tickets/12345/bundle-20190815T0020
 Extracting nodes...
 Finished extracting bundle to /Users/dn/Documents/logs/tickets/12345/bundle-20190815T002039
 ```
+
+## Troubleshooting with `kbk`
+
+A good place to start when troubleshooting is running `kbk checks`. This will check into the following conditions:
+
+- Pods with containers not in a ready state
+- Nodes not in a ready state
+- Nodes with an unsupported host OS
+- Nodes with an nsupported host kernel
+- Nodes with disk usage exceeding 90% for a particular mount
+- Nodes with swap enabled
+- Nodes without containerd service in a running state
+- Nodes without kubelet service in a running state
+- Nodes with AppArmor enabled
+- Nodes with processes oom-killed
+- Nodes encountering a known kmem leak bug
+
+Given the issue you are observing you may want to focus on either the cluster (and its underlying infrastructure) or application itself. Note that most troubleshooting methods using `kubectl` will also apply to `kbk`, other than those requiring a live cluster.
+
+### Clusters
+
+The first thing to debug in your cluster is if your nodes are all registered correctly.
+
+```sh
+kbk get nodes
+```
+
+And verify that all of the nodes you expect to see are present and that they are all in the `Ready` state.
+
+You may also want to view the logs associated with Kubernetes components. Note that you can use `kbk cluster leaders` and `kbk get pods` to assist in identifying leaders and pod names.
+
+Master only:
+`kbk logs <kube-apiserver-pod-name>` - API Server, responsible for serving the API
+`kbk logs <kube-scheduler-leader-pod-name>` - Scheduler, responsible for making scheduling decisions
+`kbk logs <kube-controller-manager-leader-pod-name>` - Controller that manages replication controllers
+
+All nodes:
+`less <node-ip>/kubelet.service.log` - Kubelet, responsible for running containers on the node
+`kbk logs <kube-proxy-pod-name>` - Kube Proxy, responsible for service load balancing
+
+#### Specific scenarios
+
+- `kube-apiserver` host shutdown or apiserver crashing
+  - Unable to stop, update, or start new pods, services, replication controller
+  - Existing pods and services should continue to work normally, unless they depend on the Kubernetes API
+- `kube-apiserver` backing storage lost
+  - `kube-apiserver` should fail to come up
+  - Kubelets will not be able to reach it but will continue to run the same pods and provide the same service proxying
+  - Manual recovery or recreation of apiserver state necessary before apiserver is restarted
+- Supporting services (node controller, replication controller manager, scheduler, etc.) shutdown or crashing
+  - Currently these are colocated with the apiserver and their unavailability has similar consequences as apiserver.
+- Individual node shutdown
+  - Pods on that node stop running
+- Network partition
+  - Partition A thinks the nodes in partition B are down; partition B thinks the apiserver is down. (Assuming the master node ends up in partition A)
+- Kubelet software fault
+  - Crashing kubelet cannot start new pods on the node
+  - Kubelet might delete pods
+  - Node marked unhealthy
+  - Replication controllers start new pods elsewhere
+
+### Applications
+
+The first step in troubleshooting is triage. What is the problem? Is it your Pods, your Replication Controller or your Service?
+
+#### Debugging Pods
+
+The first step in debugging a Pod is taking a look at it. Check the current state of the Pod and recent events with the following command:
+
+```sh
+kbk describe pod <pod-name>
+```
+
+Look at the state of the containers in the pod. Are they all Running? Have there been recent restarts? What do the events tell you?
+
+##### My pod stays pending
+
+If a Pod is stuck in `Pending` it means that it can not be scheduled onto a node. Generally this is because there are insufficient resources of one type or another that prevent scheduling. Look at the output of the `kbk describe ...` command above. There should be messages from the scheduler about why it can not schedule your pod. Reasons include:
+
+- You don’t have enough resources: You may have exhausted the supply of CPU or Memory in your cluster, in this case you need to delete Pods, adjust resource requests, or add new nodes to your cluster.
+- You are using hostPort: When you bind a Pod to a hostPort there are a limited number of places that pod can be scheduled. In most cases, hostPort is unnecessary, try using a Service object to expose your Pod. If you do require hostPort then you can only schedule as many Pods as there are nodes in your Kubernetes cluster.
+
+##### My pod stays waiting
+
+If a Pod is stuck in the `Waiting` state, then it has been scheduled to a worker node, but it can’t run on that machine. Again, the information from `kbk describe ...` should be informative. The most common cause of `Waiting` pods is a failure to pull the image. There are three things to check:
+
+- Make sure that you have the name of the image correct.
+- Have you pushed the image to the repository?
+- Run a manual `docker pull <image>` on your machine to see if the image can be pulled.
+
+##### My pod is crashing or otherwise unhealthy
+
+First, take a look at the logs of the current container:
+
+```sh
+kbk logs <pod-name>
+```
+
+You may also want to check the Kubelet and kube-scheduler logs (See cluster troubleshooting section above).
+
+#### Debugging Replication Controllers
+
+Replication controllers are fairly straightforward. They can either create Pods or they can’t. If they can’t create pods, then please refer to the instructions above to debug your pods.
+
+You can also use `kbk describe rc <controller-name> -n <namespace>` to introspect events related to the replication controller.
+
+#### Debugging Services
+
+Services provide load balancing across a set of pods. There are several common problems that can make Services not work properly. The following instructions should help debug Service problems.
+
+First, verify that there are endpoints for the service. For every Service object, the apiserver makes an `endpoints` resource available.
+
+You can view this resource with:
+
+```sh
+kbk get endpoints
+```
+
+Make sure that the endpoints match up with the number of containers that you expect to be a member of your service. For example, if your Service is for an nginx container with 3 replicas, you would expect to see three different IP addresses in the Service’s endpoints.
+
+##### My service is missing endpoints
+
+If you are missing endpoints, try listing pods using the labels that Service uses. Imagine that you have a Service where the labels are:
+
+```yaml
+...
+spec:
+  - selector:
+     name: nginx
+     type: frontend
+```
+
+You can then check the pods that match this selector, verifying that the list matches the Pods that you expect to provide your Service.
+
+If the list of pods matches expectations, but your endpoints are still empty, it’s possible that you don’t have the right ports exposed. If your service has a `containerPort` specified, but the Pods that are selected don’t have that port listed, then they won’t be added to the endpoints list.
+
+Verify that the pod’s `containerPort` matches up with the Service’s `containerPort`.
+
+##### Network traffic is not forwarded
+
+If you can connect to the service, but the connection is immediately dropped, and there are endpoints in the endpoints list, it’s likely that the proxy can’t contact your pods.
+
+There are three things to check:
+
+- Are your pods working correctly? Look for restart count, and debug pods.
+- Can you connect to your pods directly? Get the IP address for the Pod, and try to connect directly to that IP.
+- Is your application serving on the port that you configured? Kubernetes doesn’t do port remapping, so if your application serves on 8080, the `containerPort` field needs to be 8080.
