@@ -5,6 +5,7 @@
   - [Installation](#installation)
     - [Installing and Running Locally](#installing-and-running-locally)
     - [Running via Docker](#running-via-docker)
+  - [Environment Variables](#environment-variables)
   - [Usage](#usage)
     - [Interacting with Kubernetes Resources](#interacting-with-kubernetes-resources)
       - [`api-resources`](#api-resources)
