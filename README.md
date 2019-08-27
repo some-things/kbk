@@ -61,7 +61,8 @@ pip install yq
 Once `jq` and `yq` are installed, simply add `kbk` to your `PATH`.
 
 ```sh
-sudo curl -o /usr/local/bin/kbk https://raw.githubusercontent.com/some-things/kbk/master/kbk.sh
+curl -O https://raw.githubusercontent.com/some-things/kbk/master/kbk.sh
+sudo mv kbk.sh /usr/local/bin/kbk
 sudo chmod +x /usr/local/bin/kbk
 kbk --help
 ```
