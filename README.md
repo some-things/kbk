@@ -1,6 +1,6 @@
 # KBK - Kubernetes Bundle toolKit
 
-- [KBK - K* Bundle toolKit](#kbk---k-bundle-toolkit)
+- [KBK - Kubernetes Bundle toolKit](#kbk---kubernetes-bundle-toolkit)
   - [Summary](#summary)
   - [Installation](#installation)
     - [Installing and Running Locally](#installing-and-running-locally)
@@ -73,6 +73,14 @@ To run `kbk` against a bundle using Docker, execute the following commands while
 docker run --rm -it -v "$(pwd)":/bundle-root -w="/bundle-root" dnemes/kbk:latest
 kbk --help
 ```
+
+## Environment Variables
+`kbk` supports the following environment variables:
+
+|Variable|Default|Description|
+|---|---|---|
+|KBK_TICKETS_DIR|${HOME}/Documents/logs/tickets|Directory where the bundle will be extracted|
+|KBK_BUNDLE_DIR|Folder prefixed with 'bundle-' in /path/to/work/dir|Directoy for bundle root|
 
 ## Usage
 
@@ -268,7 +276,7 @@ spec:
 View the logs for a specific pod.
 
 ```sh
-kbk logs <pod-name> <namespace>
+kbk logs <pod-name>
 ```
 
 ### Check for Issues
