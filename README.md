@@ -36,7 +36,7 @@
 
 ## Summary
 
-Kubernetes Bundle toolKit (KBK) is a simple command line tool for parsing files contained within Kubernetes diagnostic bundles.
+Kubernetes Bundle toolKit (KBK) is a simple command-line tool for parsing files contained within Kubernetes diagnostic bundles.
 
 The intent of `kbk` is to mimic the functionality of the `kubectl` when working with Kubernetes diagnostic bundles and parse their contents more effective and efficiently. To accomplish this, we leverage the use of `yq`. Using `kbk` allows you to quickly gather information about a cluster and its state without having to open large, and often cumbersome, YAML, JSON, and log files.
 
@@ -303,7 +303,7 @@ Run checks against the bundle to find errors, misconfigurations, and more. The c
 - Pods with containers not in a ready state
 - Nodes not in a ready state
 - Nodes with an unsupported host OS
-- Nodes with an nsupported host kernel
+- Nodes with an unsupported host kernel
 - Nodes with disk usage exceeding 90% for a particular mount
 - Nodes with swap enabled
 - Nodes without containerd service in a running state
@@ -384,7 +384,7 @@ A good place to start when troubleshooting is running `kbk checks`. This will ch
 - Pods with containers not in a ready state
 - Nodes not in a ready state
 - Nodes with an unsupported host OS
-- Nodes with an nsupported host kernel
+- Nodes with an unsupported host kernel
 - Nodes with disk usage exceeding 90% for a particular mount
 - Nodes with swap enabled
 - Nodes without containerd service in a running state
@@ -393,7 +393,9 @@ A good place to start when troubleshooting is running `kbk checks`. This will ch
 - Nodes with processes oom-killed
 - Nodes encountering a known kmem leak bug
 
-Given the issue you are observing you may want to focus on either the cluster (and its underlying infrastructure) or application itself. Note that most troubleshooting methods using `kubectl` will also apply to `kbk`, other than those requiring a live cluster.
+Another good resource is `kbk get events`, which will provide a high level overview of the events in the cluster. Kubernetes events are a resource type in Kubernetes that are automatically created when other resources have state changes, errors, or other messages that should be broadcast to the system.
+
+Given the issue you are observing, you may want to focus on either the cluster (and its underlying infrastructure) or application itself. Note that most troubleshooting methods using `kubectl` will also apply to `kbk`, other than those requiring a live cluster.
 
 ### Clusters
 
@@ -408,17 +410,23 @@ And verify that all of the nodes you expect to see are present and that they are
 You may also want to view the logs associated with Kubernetes components. Note that you can use `kbk cluster leaders` and `kbk get pods` to assist in identifying leaders and pod names.
 
 Master only:
-`kbk logs <kube-apiserver-pod-name>` - API Server, responsible for serving the API
-`kbk logs <kube-scheduler-leader-pod-name>` - Scheduler, responsible for making scheduling decisions
-`kbk logs <kube-controller-manager-leader-pod-name>` - Controller that manages replication controllers
+
+|Component|Log Location|Description|
+|---|---|---|
+|kube-apiserver|`kbk logs <kube-apiserver-pod-name>`|API Server, responsible for serving the API|
+|kube-scheduler|`kbk logs <kube-scheduler-leader-pod-name>`|Scheduler, responsible for making scheduling decisions|
+|kube-controller-manager|`kbk logs <kube-controller-manager-leader-pod-name>`|Controller that manages replication controllers|
 
 All nodes:
-`less <node-ip>/kubelet.service.log` - Kubelet, responsible for running containers on the node
-`kbk logs <kube-proxy-pod-name>` - Kube Proxy, responsible for service load balancing
+
+|Component|Log Location|Description|
+|---|---|---|
+|kubelet|`less <node-ip>/kubelet.service.log`|Kubelet, responsible for running containers on the node|
+|kube-proxy|`kbk logs <kube-proxy-pod-name>`|Kube Proxy, responsible for service load balancing|
 
 #### Specific scenarios
 
-- `kube-apiserver` host shutdown or apiserver crashing
+- `kube-apiserver` crashing or host is offline
   - Unable to stop, update, or start new pods, services, replication controller
   - Existing pods and services should continue to work normally, unless they depend on the Kubernetes API
 - `kube-apiserver` backing storage lost
@@ -426,7 +434,7 @@ All nodes:
   - Kubelets will not be able to reach it but will continue to run the same pods and provide the same service proxying
   - Manual recovery or recreation of apiserver state necessary before apiserver is restarted
 - Supporting services (node controller, replication controller manager, scheduler, etc.) shutdown or crashing
-  - Currently these are colocated with the apiserver and their unavailability has similar consequences as apiserver.
+  - Currently these are colocated with the apiserver and their unavailability has similar consequences to that of the apiserver.
 - Individual node shutdown
   - Pods on that node stop running
 - Network partition
@@ -449,7 +457,7 @@ The first step in debugging a Pod is taking a look at it. Check the current stat
 kbk describe pod <pod-name>
 ```
 
-Look at the state of the containers in the pod. Are they all Running? Have there been recent restarts? What do the events tell you?
+Look at the state of the containers in the pod. Are they all `Running`? Have there been recent restarts? What do the events tell you?
 
 ##### My pod stays pending
 
@@ -460,7 +468,7 @@ If a Pod is stuck in `Pending` it means that it can not be scheduled onto a node
 
 ##### My pod stays waiting
 
-If a Pod is stuck in the `Waiting` state, then it has been scheduled to a worker node, but it can’t run on that machine. Again, the information from `kbk describe ...` should be informative. The most common cause of `Waiting` pods is a failure to pull the image. There are three things to check:
+If a Pod is stuck in the `Waiting` state, then it has been scheduled to a worker node, but it can’t run on that machine. Again, the information from `kbk describe ...` should be informative. The most common cause of `Waiting` pods is a failure to pull the image. In that case, there are three things to check:
 
 - Make sure that you have the name of the image correct.
 - Have you pushed the image to the repository?
@@ -468,7 +476,7 @@ If a Pod is stuck in the `Waiting` state, then it has been scheduled to a worker
 
 ##### My pod is crashing or otherwise unhealthy
 
-First, take a look at the logs of the current container:
+Take a look at the logs of the current container:
 
 ```sh
 kbk logs <pod-name>
@@ -480,7 +488,7 @@ You may also want to check the Kubelet and kube-scheduler logs (See cluster trou
 
 Replication controllers are fairly straightforward. They can either create Pods or they can’t. If they can’t create pods, then please refer to the instructions above to debug your pods.
 
-You can also use `kbk describe rc <controller-name> -n <namespace>` to introspect events related to the replication controller.
+You can also use `kbk describe rc <controller-name> -n <namespace>` to inspect events related to the replication controller.
 
 #### Debugging Services
 
