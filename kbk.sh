@@ -2773,7 +2773,7 @@ get-NetworkSet() {
 get-Node() {
   # TODO - refactor this
   (echo "NAME~STATUS~ROLES~CREATED~VERSION~INTERNAL-IP~EXTERNAL-IP~OS-IMAGE~KERNEL-VERSION~CONTAINER-RUNTIME"
-  find "${API_RESOURCES_DIR}" -name 'nodes*.yaml' -type f -exec yq -r '"\(.items[] | .metadata.name + "~" + (.status.conditions[] | select(.type == "Ready") | if .status == "True" then "Ready" else "NotReady" end) + "~" + (.metadata.labels | if ."node-role.kubernetes.io/master"? then "master" else "worker" end) + "~" + (.metadata.creationTimestamp | tostring) + "~" + (.status.nodeInfo.kubeletVersion) + "~" + (.status.addresses[] | select(.type == "InternalIP") .address) + "~" + (.status.addresses[] | select(.type == "ExternalIP") .address) + "~" + (.status.nodeInfo | .osImage + "~" + .kernelVersion + "~" + .containerRuntimeVersion))"' {} \;) | column -t -s '~'
+  find "${API_RESOURCES_DIR}" -name 'nodes*.yaml' -type f -exec yq -r '"\(.items[] | .metadata.name + "~" + (.status.conditions[] | select(.type == "Ready") | if .status == "True" then "Ready" else "NotReady" end) + "~" + (.metadata.labels? | if ."node-role.kubernetes.io/master"? then "master" else "worker" end) + "~" + (.metadata.creationTimestamp | tostring) + "~" + (.status.nodeInfo.kubeletVersion) + "~" + (.status.addresses[] | select(.type == "InternalIP") .address) + "~" + (if (.status.addresses[]? | select(.type? == "ExternalIP") .address?) then .status.addresses[]? | select(.type? == "ExternalIP") .address? else "<none>" end) + "~" + (.status.nodeInfo | .osImage + "~" + .kernelVersion + "~" + .containerRuntimeVersion))"' {} \;) | column -t -s '~'
 }
 
 get-OAuth2Client() {
