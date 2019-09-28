@@ -6,3 +6,12 @@ hpa-test.yaml
 build.sh
 opts-test.sh
 refactor-dump.sh
+api-resources.list
+build-sql.sh
+hardcoded-kb.sh
+kb-unformatted.sh
+refactor.sh
+resource-files.log
+test.sql
+test-clusters
+.DS_Store
