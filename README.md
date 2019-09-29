@@ -2,19 +2,17 @@
 
 - [KBK - Kubernetes Bundle toolKit](#kbk---kubernetes-bundle-toolkit)
   - [Summary](#summary)
-  - [Installation](#installation)
-    - [Installing and Running Locally](#installing-and-running-locally)
+  - [Setup](#setup)
+    - [Running Locally](#running-locally)
+      - [Prerequisites](#prerequisites)
+      - [Download and Installation](#download-and-installation)
     - [Running via Docker](#running-via-docker)
   - [Environment Variables](#environment-variables)
   - [Usage](#usage)
     - [Interacting with Kubernetes Resources](#interacting-with-kubernetes-resources)
-      - [`api-resources`](#api-resources)
-      - [`explain`](#explain)
-      - [`get`](#get)
       - [`cluster`](#cluster)
         - [`summary`](#summary)
         - [`leaders`](#leaders)
-      - [`describe`](#describe)
     - [Viewing Logs](#viewing-logs)
       - [`logs`](#logs)
     - [Check for Issues](#check-for-issues)
@@ -36,41 +34,72 @@
 
 ## Summary
 
-Kubernetes Bundle toolKit (KBK) is a simple command-line tool for parsing files contained within Kubernetes diagnostic bundles.
+Kubernetes Bundle toolKit (KBK) is a simple command-line tool for analyzing files contained within Kubernetes diagnostic bundles.
 
-The intent of `kbk` is to mimic the functionality of the `kubectl` when working with Kubernetes diagnostic bundles and parse their contents more effective and efficiently. To accomplish this, we leverage the use of `yq`. Using `kbk` allows you to quickly gather information about a cluster and its state without having to open large, and often cumbersome, YAML, JSON, and log files.
+The intent of `kbk` is to provide easy access to cluster information and resources on the fly using `kubectl`. This allows the user to interact with Kubernetes diagnostic bundles and parse their contents more effective and efficiently. Using `kbk` allows you to quickly gather information about a cluster and its state without having to open large, and often cumbersome, YAML, JSON, and log files.
 
 This project is a work-in-progress and will likely be updated regularly. Any feedback or contributions are welcome.
 
-## Installation
+## Setup
 
 Users have multiple options for running `kbk`, including running locally or within a Docker container.
 
-### Installing and Running Locally
+### Running Locally
 
-As `kbk` leverages `yq`, and thus `jq`, both are required for using `kbk`.
+#### Prerequisites
+
+To use `kbk`, the following prerequisites must be installed:
+
+- [`jq`](https://github.com/stedolan/jq) for parsing JSON and as it is a depenency for `yq`
+- [`yq`](https://github.com/kislyuk/yq) for parsing YAML
+- [`docker`](https://www.docker.com/) for running the Kubernetes cluster components and as a dependency for `k3d`
+- [`k3d`](https://github.com/rancher/k3d) for managing the Kubernetes cluster's lifecycle
+- [`sqlite3`](https://www.sqlite.org/cli.html) for interacting with the Kubernetes backend SQLite database
+- [`kubectl`](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for interacting with the Kubernetes cluster
 
 On MacOS, these can be installed with `brew`:
 
 ```sh
-brew install jq python-yq
+brew install jq python-yq docker k3d sqlite3 kubernetes-cli
 ```
 
 On RedHat based distros:
 
 ```sh
-yum install -y jq
-pip install yq
+yum install -y epel-release \
+  yum-utils \
+  device-mapper-persistent-data \
+  lvm2
+yum-config-manager \
+  --add-repo \
+  https://download.docker.com/linux/centos/docker-ce.repo
+cat <<EOF > /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+EOF
+yum install -y jq \
+  python3 \
+  docker-ce \
+  docker-ce-cli \
+  containerd.io \
+  sqlite \
+  kubectl
+systemctl enable docker && systemctl restart docker
+curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+python3 get-pip.py
+export PATH=$PATH:/usr/local/bin
+pip3 install yq
+curl -s https://raw.githubusercontent.com/rancher/k3d/master/install.sh | bash
 ```
 
-On Debian based distros:
+#### Download and Installation
 
-```sh
-apt install -y jq
-pip install yq
-```
-
-Once `jq` and `yq` are installed, simply add `kbk` to your `PATH`.
+Once all preqrequisites are installed, simply download `kbk` and add it to your `PATH`.
 
 ```sh
 curl -O https://raw.githubusercontent.com/some-things/kbk/master/kbk.sh
@@ -81,12 +110,7 @@ kbk --help
 
 ### Running via Docker
 
-To run `kbk` against a bundle using Docker, execute the following commands while the bundle root is your working directory:
-
-```sh
-docker run --rm -it -v "$(pwd)":/bundle-root -w="/bundle-root" dnemes/kbk:latest
-kbk --help
-```
+Coming soon.
 
 ## Environment Variables
 
@@ -99,104 +123,9 @@ kbk --help
 
 ## Usage
 
-Note: `kbk` relies on the bundle root directory name being prefixed with `bundle-` (however, it can be from any sub-directory). This is only a factor when running locally. To automatically extract a bundle and its contents to a directory name prefixed with `bundle-`, please see [`kbk extract`](#extract).
+Note: `kbk` relies on the bundle root directory name being prefixed with `bundle-` (however, it can also be invoked from any sub-directory). This is only a factor when running locally. To automatically extract a bundle and its contents to a directory name prefixed with `bundle-`, please see [`kbk extract`](#extract).
 
 ### Interacting with Kubernetes Resources
-
-#### `api-resources`
-
-Display a list of api-resources contained in the diagnostic bundle.
-
-```sh
-kbk api-resources
-```
-
-```sh
-$ kbk api-resources
-addons
-alertmanagers
-apiservices
-authcodes
-authrequests
-backups
-backupstoragelocations
-bgpconfigurations
-bgppeers
-blockaffinities
-certificatesigningrequests
-clusterinformations
-clusterrolebindings
-clusterroles
-componentstatuses
-configmaps
-...
-```
-
-#### `explain`
-
-Print metadata about specific resource types. This is useful for learning about the resource.
-
-```sh
-kbk explain <resource-kind>
-```
-
-```sh
-$ kbk explain service
-KIND:     Service
-VERSION:  v1
-
-DESCRIPTION:
-     Service is a named abstraction of software service (for example, mysql)
-     consisting of local port (for example 3306) that the proxy listens on, and
-     the selector that determines which pods will answer requests sent through
-     the proxy.
-
-FIELDS:
-   apiVersion <string>
-     APIVersion defines the versioned schema of this representation of an
-     object. Servers should convert recognized schemas to the latest internal
-     value, and may reject unrecognized values. More info:
-     https://git.k8s.io/community/contributors/devel/api-conventions.md#resources
-
-   kind <string>
-     Kind is a string value representing the REST resource this object
-     represents. Servers may infer this from the endpoint the client submits
-     requests to. Cannot be updated. In CamelCase. More info:
-     https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds
-
-   metadata <Object>
-     Standard object's metadata. More info:
-     https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata
-
-   spec <Object>
-     Spec defines the behavior of a service.
-     https://git.k8s.io/community/contributors/devel/api-conventions.md#spec-and-status
-
-   status <Object>
-     Most recently observed status of the service. Populated by the system.
-     Read-only. More info:
-     https://git.k8s.io/community/contributors/devel/api-conventions.md#spec-and-status
-```
-
-#### `get`
-
-Reads resources from the cluster and formats them as output.
-
-```sh
-kbk get <resource-kind>
-```
-
-```sh
-$ kbk get nodes
-NAME                                        STATUS  ROLES   CREATED               VERSION  INTERNAL-IP   EXTERNAL-IP     OS-IMAGE               KERNEL-VERSION             CONTAINER-RUNTIME
-ip-10-0-128-132.us-west-2.compute.internal  Ready   worker  2019-08-14T23:48:58Z  v1.15.2  10.0.128.132  54.187.247.32   CentOS Linux 7 (Core)  3.10.0-957.1.3.el7.x86_64  containerd://1.2.6
-ip-10-0-128-250.us-west-2.compute.internal  Ready   worker  2019-08-14T23:48:58Z  v1.15.2  10.0.128.250  54.189.80.80    CentOS Linux 7 (Core)  3.10.0-957.1.3.el7.x86_64  containerd://1.2.6
-ip-10-0-129-135.us-west-2.compute.internal  Ready   worker  2019-08-14T23:48:58Z  v1.15.2  10.0.129.135  54.212.244.214  CentOS Linux 7 (Core)  3.10.0-957.1.3.el7.x86_64  containerd://1.2.6
-ip-10-0-129-156.us-west-2.compute.internal  Ready   worker  2019-08-14T23:48:58Z  v1.15.2  10.0.129.156  54.214.123.122  CentOS Linux 7 (Core)  3.10.0-957.1.3.el7.x86_64  containerd://1.2.6
-ip-10-0-192-13.us-west-2.compute.internal   Ready   master  2019-08-14T23:46:11Z  v1.15.2  10.0.192.13   52.39.248.37    CentOS Linux 7 (Core)  3.10.0-957.1.3.el7.x86_64  containerd://1.2.6
-ip-10-0-194-111.us-west-2.compute.internal  Ready   master  2019-08-14T23:48:07Z  v1.15.2  10.0.194.111  34.219.8.231    CentOS Linux 7 (Core)  3.10.0-957.1.3.el7.x86_64  containerd://1.2.6
-ip-10-0-194-161.us-west-2.compute.internal  Ready   master  2019-08-14T23:47:06Z  v1.15.2  10.0.194.161  35.162.141.232  CentOS Linux 7 (Core)  3.10.0-957.1.3.el7.x86_64  containerd://1.2.6
-```
 
 #### `cluster`
 
@@ -249,41 +178,6 @@ kube-controller-manager leader information:
 }
 ```
 
-#### `describe`
-
-Shows details about a resource and formats and prints this information on multiple lines.
-
-```sh
-kbk describe <resource-kind> <name> [-n namespace]
-```
-
-```sh
-$ kbk describe pod etcd-ip-10-0-192-13.us-west-2.compute.internal kube-system
-apiVersion: v1
-kind: Pod
-metadata:
-  annotations:
-    kubernetes.io/config.hash: f0c866401863f8a4b57587b5259d617b
-    kubernetes.io/config.mirror: f0c866401863f8a4b57587b5259d617b
-    kubernetes.io/config.seen: '2019-08-14T23:45:52.109597667Z'
-    kubernetes.io/config.source: file
-  creationTimestamp: '2019-08-14T23:47:16Z'
-  labels:
-    component: etcd
-    tier: control-plane
-  name: etcd-ip-10-0-192-13.us-west-2.compute.internal
-  namespace: kube-system
-  resourceVersion: '520'
-  selfLink: /api/v1/namespaces/kube-system/pods/etcd-ip-10-0-192-13.us-west-2.compute.internal
-  uid: a6786bc5-af0c-48b2-b864-e56fd83c4375
-spec:
-  containers:
-  - command:
-    - etcd
-    - --advertise-client-urls=https://10.0.192.13:2379
-...
-```
-
 ### Viewing Logs
 
 #### `logs`
@@ -291,7 +185,7 @@ spec:
 View the logs for a specific pod.
 
 ```sh
-kbk logs <pod-name>
+kbk logs <pod-namespace> <pod-name>
 ```
 
 ### Check for Issues
@@ -393,16 +287,16 @@ A good place to start when troubleshooting is running `kbk checks`. This will ch
 - Nodes with processes oom-killed
 - Nodes encountering a known kmem leak bug
 
-Another good resource is `kbk get events`, which will provide a high level overview of the events in the cluster. Kubernetes events are a resource type in Kubernetes that are automatically created when other resources have state changes, errors, or other messages that should be broadcast to the system.
+Another good resource is `kubectl get events`, which will provide a high level overview of the events in the cluster. Kubernetes events are a resource type in Kubernetes that are automatically created when other resources have state changes, errors, or other messages that should be broadcast to the system.
 
-Given the issue you are observing, you may want to focus on either the cluster (and its underlying infrastructure) or application itself. Note that most troubleshooting methods using `kubectl` will also apply to `kbk`, other than those requiring a live cluster.
+Given the issue you are observing, you may want to focus on either the cluster (and its underlying infrastructure) or application itself.
 
 ### Clusters
 
 The first thing to debug in your cluster is if your nodes are all registered correctly.
 
 ```sh
-kbk get nodes
+kubectl get nodes
 ```
 
 And verify that all of the nodes you expect to see are present and that they are all in the `Ready` state.
