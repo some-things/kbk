@@ -1,6 +1,6 @@
-# KBK - Kubernetes Bundle toolKit
+# kbk - Kubernetes Bundle Tool
 
-- [KBK - Kubernetes Bundle toolKit](#kbk---kubernetes-bundle-toolkit)
+- [kbk - Kubernetes Bundle Tool](#kbk---kubernetes-bundle-tool)
   - [Summary](#summary)
   - [Setup](#setup)
     - [Running Locally](#running-locally)
@@ -34,7 +34,7 @@
 
 ## Summary
 
-Kubernetes Bundle toolKit (KBK) is a simple command-line tool for analyzing files contained within Kubernetes diagnostic bundles.
+Kubernetes Bundle Tool (kbk) is a simple command-line tool for analyzing files contained within Kubernetes diagnostic bundles.
 
 The intent of `kbk` is to provide easy access to cluster information and resources on the fly using `kubectl`. This allows the user to interact with Kubernetes diagnostic bundles and parse their contents more effective and efficiently. Using `kbk` allows you to quickly gather information about a cluster and its state without having to open large, and often cumbersome, YAML, JSON, and log files.
 
@@ -129,7 +129,7 @@ Note: `kbk` relies on the bundle root directory name being prefixed with `bundle
 
 #### `cluster`
 
-Display node/host level cluster information.
+Display cluster information without the need for provisioning a cluster with `up`.
 
 ##### `summary`
 
@@ -303,13 +303,18 @@ And verify that all of the nodes you expect to see are present and that they are
 
 You may also want to view the logs associated with Kubernetes components. Note that you can use `kbk cluster leaders` and `kbk get pods` to assist in identifying leaders and pod names.
 
+You can also check the current leaders using `kubectl`:
+
+- Controller Manager: `kubectl -n kube-system get endpoints kube-controller-manager -o jsonpath='{.metadata.annotations.control-plane\.alpha\.kubernetes\.io/leader}'`
+- Scheduler: `kubectl -n kube-system get endpoints kube-scheduler -o jsonpath='{.metadata.annotations.control-plane\.alpha\.kubernetes\.io/leader}'`
+
 Master only:
 
 |Component|Log Location|Description|
 |---|---|---|
-|kube-apiserver|`kbk logs <kube-apiserver-pod-name>`|API Server, responsible for serving the API|
-|kube-scheduler|`kbk logs <kube-scheduler-leader-pod-name>`|Scheduler, responsible for making scheduling decisions|
-|kube-controller-manager|`kbk logs <kube-controller-manager-leader-pod-name>`|Controller that manages replication controllers|
+|kube-apiserver|`kbk logs kube-system <kube-apiserver-pod-name>`|API Server, responsible for serving the API|
+|kube-scheduler|`kbk logs kube-system <kube-scheduler-leader-pod-name>`|Scheduler, responsible for making scheduling decisions|
+|kube-controller-manager|`kbk logs kube-system <kube-controller-manager-leader-pod-name>`|Controller that manages replication controllers|
 
 All nodes:
 
