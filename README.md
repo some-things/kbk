@@ -10,9 +10,10 @@
   - [Environment Variables](#environment-variables)
   - [Usage](#usage)
     - [Interacting with Kubernetes Resources](#interacting-with-kubernetes-resources)
-      - [`cluster`](#cluster)
-        - [`summary`](#summary)
-        - [`leaders`](#leaders)
+      - [`up`](#up)
+      - [`down`](#down)
+      - [`status`](#status)
+      - [`kubeconfig`](#kubeconfig)
     - [Viewing Logs](#viewing-logs)
       - [`logs`](#logs)
     - [Check for Issues](#check-for-issues)
@@ -38,8 +39,6 @@ Kubernetes Bundle Tool (kbk) is a simple command-line tool for analyzing files c
 
 The intent of `kbk` is to provide easy access to cluster information and resources on the fly using `kubectl`. This allows the user to interact with Kubernetes diagnostic bundles and parse their contents more effective and efficiently. Using `kbk` allows you to quickly gather information about a cluster and its state without having to open large, and often cumbersome, YAML, JSON, and log files.
 
-This project is a work-in-progress and will likely be updated regularly. Any feedback or contributions are welcome.
-
 ## Setup
 
 Users have multiple options for running `kbk`, including running locally or within a Docker container.
@@ -50,7 +49,7 @@ Users have multiple options for running `kbk`, including running locally or with
 
 To use `kbk`, the following prerequisites must be installed:
 
-- [`jq`](https://github.com/stedolan/jq) for parsing JSON and as it is a depenency for `yq`
+- [`jq`](https://github.com/stedolan/jq) for parsing JSON and as a dependency for `yq`
 - [`yq`](https://github.com/kislyuk/yq) for parsing YAML
 - [`docker`](https://www.docker.com/) for running the Kubernetes cluster components and as a dependency for `k3d`
 - [`k3d`](https://github.com/rancher/k3d) for managing the Kubernetes cluster's lifecycle
@@ -119,15 +118,108 @@ Coming soon.
 |Variable|Default|Description|
 |---|---|---|
 |KBK_TICKETS_DIR|${HOME}/Documents/logs/tickets|Directory where the bundle will be extracted|
-|KBK_BUNDLE_DIR|Folder prefixed with 'bundle-' in /path/to/work/dir|Directoy for bundle root|
+|KBK_BUNDLE_DIR|Folder prefixed with 'bundle-' in /path/to/work/dir|Directoy of the bundle root|
 
 ## Usage
 
-Note: `kbk` relies on the bundle root directory name being prefixed with `bundle-` (however, it can also be invoked from any sub-directory). This is only a factor when running locally. To automatically extract a bundle and its contents to a directory name prefixed with `bundle-`, please see [`kbk extract`](#extract).
+Note: `kbk` relies on the bundle root directory name being prefixed with `bundle-`. However, it can also be invoked from any sub-directory or overriden by setting the `KBK_BUNDLE_DIR` environment variable. This is only a factor when running locally. To automatically extract a bundle and its contents to a directory name prefixed with `bundle-`, please see [`kbk extract`](#extract).
 
 ### Interacting with Kubernetes Resources
 
-#### `cluster`
+#### `up`
+
+Provisions a Kubernetes cluster and injects the resources contained within the bundle into the cluster's backing database. This then allows the user to parse bundle resources using `kubectl` (and thus, any `kubectl` plugins).
+
+How it works:
+
+1) A Kubernetes cluster is provisioned.
+2) The managed cluster's state and associated file paths are written to `${HOME}/.kbk/state.json`
+3) The Kubernetes cluster is stopped.
+4) SQL queries (INSERT statements) are created based on the contents of the resource YAML in the api-resources directory.
+5) The resulting SQL statements ran against the Kubernetes backend SQLite database.
+6) The Kubernetes cluster is started once again and is available via `kubectl`.
+
+```sh
+kbk up
+```
+
+```sh
+$ kbk up
+2019/09/29 22:57:57 Created cluster network with ID 2838730fe632ddaedfa407f57cfb53c484b01621927cea1cb31eca77e9d87b50
+2019/09/29 22:57:57 Created docker volume  k3d-kbk-cluster-e4e6544d-images
+2019/09/29 22:57:57 Creating cluster [kbk-cluster-e4e6544d]
+...
+Adding resources into database.
+Starting cluster.
+2019/09/29 23:02:34 Starting cluster [kbk-cluster-e4e6544d]
+2019/09/29 23:02:34 ...Starting server
+2019/09/29 23:02:35 SUCCESS: Started cluster [kbk-cluster-e4e6544d]
+Started cluster. Please set your kubeconfig with:
+export KUBECONFIG="$(k3d get-kubeconfig --name='kbk-cluster-e4e6544d')"
+```
+
+#### `down`
+
+Destroy the current managed cluster and all associated resources.
+
+How it works:
+
+1) The current managed Kubernetes cluster is deleted.
+2) The kbk cluster's `dataDirectory` (`${API_RESOURCES_DIR}/.kbk`) is deleted.
+3) The kbk state file (`${HOME}/.kbk/state.json`) is wiped.
+
+```sh
+kbk down
+```
+
+```sh
+$ kbk down
+Deleting cluster: kbk-cluster-e4e6544d
+2019/09/29 23:07:54 Removing cluster [kbk-cluster-e4e6544d]
+2019/09/29 23:07:54 ...Removing server
+2019/09/29 23:07:55 ...Removing docker image volume
+2019/09/29 23:07:55 SUCCESS: removed cluster [kbk-cluster-e4e6544d]
+Deleting database resources.
+Wiping cluster state file.
+Done.
+```
+
+#### `status`
+
+Display the status of the current managed cluster.
+
+```sh
+kbk status
+```
+
+```sh
+$ kbk status
+{
+  "clusterName": "kbk-cluster-e4e6544d",
+  "bundleRoot": "/Users/dn/Documents/logs/tickets/konvoy-debian/bundle-20190918T002524",
+  "dataDirectory": "/Users/dn/Documents/logs/tickets/konvoy-debian/bundle-20190918T002524/10.0.194.19/api-resources/.kbk",
+  "datebaseFile": "/Users/dn/Documents/logs/tickets/konvoy-debian/bundle-20190918T002524/10.0.194.19/api-resources/.kbk/db/state.db",
+  "kubeconfigFile": "/Users/dn/.config/k3d/kbk-cluster-e4e6544d/kubeconfig.yaml",
+  "lastUpdated": "2019-09-29T22:57:58Z"
+}
+```
+
+#### `kubeconfig`
+
+Display the kubeconfig file for the current kbk cluster.
+
+```sh
+kbk kubeconfig
+```
+
+```sh
+$ kbk kubecconfig
+Current KUBECONFIG file: /Users/dn/.config/k3d/kbk-cluster-604fb608/kubeconfig.yaml
+For cluster access:
+export KUBECONFIG="/Users/dn/.config/k3d/kbk-cluster-604fb608/kubeconfig.yaml"
+```
+
+<!-- #### `cluster`
 
 Display cluster information without the need for provisioning a cluster with `up`.
 
@@ -176,7 +268,7 @@ kube-controller-manager leader information:
   "renewTime": "2019-08-21T17:42:42Z",
   "leaderTransitions": 1
 }
-```
+``` -->
 
 ### Viewing Logs
 
@@ -185,7 +277,7 @@ kube-controller-manager leader information:
 View the logs for a specific pod.
 
 ```sh
-kbk logs <pod-namespace> <pod-name>
+kbk logs <namespace> <pod-name>
 ```
 
 ### Check for Issues
@@ -195,6 +287,7 @@ kbk logs <pod-namespace> <pod-name>
 Run checks against the bundle to find errors, misconfigurations, and more. The checks currently available are:
 
 - Pods with containers not in a ready state
+- `componentstatuses` not reporting healthy
 - Nodes not in a ready state
 - Nodes with an unsupported host OS
 - Nodes with an unsupported host kernel
@@ -211,8 +304,9 @@ Check results are indicated as follows:
 ```sh
  + Passed check
  X Failed check
- - Skipped check (due to the requisite file not being present or check not being applicable)
 ```
+
+ <!-- - Skipped check (due to the requisite file not being present or check not being applicable) -->
 
 ```sh
 kbk checks
@@ -257,7 +351,7 @@ $ kbk checks
 
 #### `extract`
 
-Extracts a compressed bundle to a directory. By default, bundles will be extracted to `$HOME/Documents/logs/tickets/<specified-name>`. To change this, you can modify `USER_TICKETS_DIR`.
+Extracts a compressed bundle to a directory. By default, bundles will be extracted to `$HOME/Documents/logs/tickets/<specified-name>`. To change this, you can set the `KBK_TICKETS_DIR` [environment variable](#environment-variables).
 
 ```sh
 kbk extract <bundle-name>.tar.gz
@@ -273,19 +367,7 @@ Finished extracting bundle to /Users/dn/Documents/logs/tickets/12345/bundle-2019
 
 ## Troubleshooting with `kbk`
 
-A good place to start when troubleshooting is running `kbk checks`. This will check into the following conditions:
-
-- Pods with containers not in a ready state
-- Nodes not in a ready state
-- Nodes with an unsupported host OS
-- Nodes with an unsupported host kernel
-- Nodes with disk usage exceeding 90% for a particular mount
-- Nodes with swap enabled
-- Nodes without containerd service in a running state
-- Nodes without kubelet service in a running state
-- Nodes with AppArmor enabled
-- Nodes with processes oom-killed
-- Nodes encountering a known kmem leak bug
+A good place to start when troubleshooting is running [`kbk checks`](#checks) to check for any common errors, misconfigurations, etc.
 
 Another good resource is `kubectl get events`, which will provide a high level overview of the events in the cluster. Kubernetes events are a resource type in Kubernetes that are automatically created when other resources have state changes, errors, or other messages that should be broadcast to the system.
 
@@ -301,9 +383,11 @@ kubectl get nodes
 
 And verify that all of the nodes you expect to see are present and that they are all in the `Ready` state.
 
-You may also want to view the logs associated with Kubernetes components. Note that you can use `kbk cluster leaders` and `kbk get pods` to assist in identifying leaders and pod names.
+You may also want to view the logs associated with Kubernetes components. 
 
-You can also check the current leaders using `kubectl`:
+<!-- Note that you can use `kbk cluster leaders` and `kbk get pods` to assist in identifying leaders and pod names. -->
+
+You can check the current leaders using `kubectl`:
 
 - Controller Manager: `kubectl -n kube-system get endpoints kube-controller-manager -o jsonpath='{.metadata.annotations.control-plane\.alpha\.kubernetes\.io/leader}'`
 - Scheduler: `kubectl -n kube-system get endpoints kube-scheduler -o jsonpath='{.metadata.annotations.control-plane\.alpha\.kubernetes\.io/leader}'`
@@ -321,7 +405,7 @@ All nodes:
 |Component|Log Location|Description|
 |---|---|---|
 |kubelet|`less <node-ip>/kubelet.service.log`|Kubelet, responsible for running containers on the node|
-|kube-proxy|`kbk logs <kube-proxy-pod-name>`|Kube Proxy, responsible for service load balancing|
+|kube-proxy|`kbk logs kube-system <kube-proxy-pod-name>`|Kube Proxy, responsible for service load balancing|
 
 #### Specific scenarios
 
@@ -353,21 +437,21 @@ The first step in troubleshooting is triage. What is the problem? Is it your Pod
 The first step in debugging a Pod is taking a look at it. Check the current state of the Pod and recent events with the following command:
 
 ```sh
-kbk describe pod <pod-name>
+kubectl describe pod <pod-name> -n <namespace>
 ```
 
 Look at the state of the containers in the pod. Are they all `Running`? Have there been recent restarts? What do the events tell you?
 
 ##### My pod stays pending
 
-If a Pod is stuck in `Pending` it means that it can not be scheduled onto a node. Generally this is because there are insufficient resources of one type or another that prevent scheduling. Look at the output of the `kbk describe ...` command above. There should be messages from the scheduler about why it can not schedule your pod. Reasons include:
+If a Pod is stuck in `Pending` it means that it can not be scheduled onto a node. Generally this is because there are insufficient resources of one type or another that prevent scheduling. Look at the output of the `kubectl describe ...` command above. There should be messages from the scheduler about why it can not schedule your pod. Reasons include:
 
 - You don’t have enough resources: You may have exhausted the supply of CPU or Memory in your cluster, in this case you need to delete Pods, adjust resource requests, or add new nodes to your cluster.
 - You are using hostPort: When you bind a Pod to a hostPort there are a limited number of places that pod can be scheduled. In most cases, hostPort is unnecessary, try using a Service object to expose your Pod. If you do require hostPort then you can only schedule as many Pods as there are nodes in your Kubernetes cluster.
 
 ##### My pod stays waiting
 
-If a Pod is stuck in the `Waiting` state, then it has been scheduled to a worker node, but it can’t run on that machine. Again, the information from `kbk describe ...` should be informative. The most common cause of `Waiting` pods is a failure to pull the image. In that case, there are three things to check:
+If a Pod is stuck in the `Waiting` state, then it has been scheduled to a worker node, but it can’t run on that machine. Again, the information from `kubectl describe ...` should be informative. The most common cause of `Waiting` pods is a failure to pull the image. In that case, there are three things to check:
 
 - Make sure that you have the name of the image correct.
 - Have you pushed the image to the repository?
@@ -378,7 +462,7 @@ If a Pod is stuck in the `Waiting` state, then it has been scheduled to a worker
 Take a look at the logs of the current container:
 
 ```sh
-kbk logs <pod-name>
+kbk logs <namespace> <pod-name>
 ```
 
 You may also want to check the Kubelet and kube-scheduler logs (See cluster troubleshooting section above).
@@ -387,7 +471,7 @@ You may also want to check the Kubelet and kube-scheduler logs (See cluster trou
 
 Replication controllers are fairly straightforward. They can either create Pods or they can’t. If they can’t create pods, then please refer to the instructions above to debug your pods.
 
-You can also use `kbk describe rc <controller-name> -n <namespace>` to inspect events related to the replication controller.
+You can also use `kubectl describe rc <controller-name> -n <namespace>` to inspect events related to the replication controller.
 
 #### Debugging Services
 
@@ -398,7 +482,7 @@ First, verify that there are endpoints for the service. For every Service object
 You can view this resource with:
 
 ```sh
-kbk get endpoints
+kubectl get endpoints -A
 ```
 
 Make sure that the endpoints match up with the number of containers that you expect to be a member of your service. For example, if your Service is for an nginx container with 3 replicas, you would expect to see three different IP addresses in the Service’s endpoints.
