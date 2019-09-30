@@ -377,8 +377,6 @@ EOF
   ###
   # Begin resources section
   ###
-  # Issues
-  # - componentstatuses doesn't report correctly - add a 'check' to parse this file
 
   # Set a base resource ID to something [hopefully] out of the range of current cluster resources to avoid conflicts
   RESOURCE_ID=100000000
@@ -575,6 +573,18 @@ podChecks() {
   fi
 }
 
+componentChecks() {
+  KUBERNETES_UNHEALTHY_COMPONENTSTATUSES="$(find "${API_RESOURCES_DIR}" -name 'componentstatuses.yaml' -type f -exec yq -r '"\(.items[] | select(.conditions[] | select(.type == "Healthy" and .status != "True")) | .metadata.name + "~" + (.conditions[] | .status + "~" + .message))"' "{}" \;)"
+
+  if [[ -n $KUBERNETES_UNHEALTHY_COMPONENTSTATUSES ]]; then
+    echo -e "${RED} X Detected the following Kubernetes componentstatuses reporting as not healthy:${RESET}"
+    (echo "NAME~HEALTHY~MESSAGE"
+    echo -e "$KUBERNETES_UNHEALTHY_COMPONENTSTATUSES") | column -t -s '~' | sed 's/^/   /g'
+  else
+    echo -e "${GREEN} + No Kubernetes componentstatuses reporting as not healthy.${RESET}"
+  fi
+}
+
 nodeChecks() {
   # Nodes not ready
   NODES_NOT_READY="$(find "${API_RESOURCES_DIR}" -name 'nodes*.yaml' -type f -exec yq -r '"\(.items[] | select(.status.conditions[] | select(.type == "Ready") | .status != "True") | .metadata.name + "~" + (.status.conditions[] | select(.type == "Ready") | if .status == "True" then "Ready" else "NotReady" end) + "~" + (.metadata.labels | if ."node-role.kubernetes.io/master"? then "master" else "worker" end) + "~" + (.metadata.creationTimestamp | tostring) + "~" + (.status.addresses[] | select(.type == "InternalIP") .address) + "~" + (.status.conditions[] | select(.type == "Ready") | .status + "~" + .reason + "~" + .message + "~" + (.lastHeartbeatTime | tostring)))"' "{}" \;)"
@@ -599,7 +609,7 @@ nodeChecks() {
   fi
 
   # Unsupported OS versions
-  UNSUPPORTED_OS_NODES="$(find "${BUNDLE_ROOT}" -name 'ansible_facts.json' -type f -exec jq -r '"\(select((.distribution | (contains("CentOS") or contains("RedHat")) | not) or (.distribution_version | startswith("7.6") | not)) | .nodename + "~" + .default_ipv4.address + "~" + .distribution + " " + .distribution_version)"' "{}" \;)"
+  UNSUPPORTED_OS_NODES="$(find "${BUNDLE_ROOT}" -name 'ansible_facts.json' -type f -exec jq -r '"\(select((.distribution | (contains("CentOS") or contains("RedHat") or contains("Debian")) | not) or ((.distribution | (contains("CentOS") or contains("RedHat"))) and (.distribution_version | startswith("7.6") | not)) or ((.distribution | contains("Debian")) and (.distribution_major_version | contains("9") | not))) | .nodename + "~" + .default_ipv4.address + "~" + .distribution + " " + .distribution_version)"' "{}" \;)"
 
   if [[ -n $UNSUPPORTED_OS_NODES ]]; then
     echo -e "${RED} X Detected an unsupported OS the following node(s):${RESET}"
@@ -610,7 +620,7 @@ nodeChecks() {
   fi
 
   # Unsupported kernel versions
-  UNSUPPORTED_KERNEL_VERSIONS="$(find "${BUNDLE_ROOT}" -name 'ansible_facts.json' -type f -exec jq -r '"\(select(.kernel | startswith("3.10.0-957") | not) | .nodename + "~" + .default_ipv4.address + "~" + .kernel)"' "{}" \;)"
+  UNSUPPORTED_KERNEL_VERSIONS="$(find "${BUNDLE_ROOT}" -name 'ansible_facts.json' -type f -exec jq -r '"\(select(((.distribution | (contains("CentOS") or contains("RedHat"))) and (.kernel | startswith("3.10.0-957") | not)) or ((.distribution | contains("Debian")) and (.kernel | startswith("4.9.0-9") | not))) | .nodename + "~" + .default_ipv4.address + "~" + .kernel)"' "{}" \;)"
   
   if [[ -n $UNSUPPORTED_KERNEL_VERSIONS ]]; then
     echo -e "${RED} X Detected an unsupported kernel on the following node(s):${RESET}"
@@ -716,6 +726,7 @@ checks() {
   preflightChecks "$@"
 
   podChecks
+  componentChecks
   nodeChecks
 }
 
