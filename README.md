@@ -38,7 +38,7 @@
 
 Kubernetes Bundle toolKit (KBK) is a simple command-line tool for parsing files contained within Kubernetes diagnostic bundles.
 
-The intent of `kbk` is to mimic the functionality of the `kubectl` when working with Kubernetes diagnostic bundles and parse their contents more effective and efficiently. To accomplish this, we leverage the use of `yq`. Using `kbk` allows you to quickly gather information about a cluster and its state without having to open large, and often cumbersome, YAML, JSON, and log files.
+The intent of `kbk` is to mimic the functionality of the `kubectl` CLI command when working with Kubernetes diagnostic bundles and parse their contents more effective and efficiently. To accomplish this, we leverage the use of `yq`. Using `kbk` allows you to quickly gather information about a cluster and its state without having to open large, and often cumbersome, YAML, JSON, and log files.
 
 This project is a work-in-progress and will likely be updated regularly. Any feedback or contributions are welcome.
 
