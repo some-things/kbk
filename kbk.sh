@@ -352,10 +352,15 @@ createCluster() {
     --server-arg --no-deploy=coredns \
     --server-arg --no-deploy=servicelb \
     --server-arg --no-deploy=traefik \
+    --server-arg --no-deploy=local-storage \
+    --server-arg --no-deploy=metrics-server \
     --server-arg --kube-apiserver-arg=event-ttl=168h0m0s \
     --server-arg --kube-controller-arg=disable-attach-detach-reconcile-sync \
     --server-arg --kube-controller-arg=controllers=-attachdetach,-clusterrole-aggregation,-cronjob,-csrapproving,-csrcleaner,-csrsigning,-daemonset,-deployment,-disruption,-endpoint,-garbagecollector,-horizontalpodautoscaling,-job,-namespace,-nodeipam,-nodelifecycle,-persistentvolume-binder,-persistentvolume-expander,-podgc,-pv-protection,-pvc-protection,-replicaset,-replicationcontroller,-resourcequota,-root-ca-cert-publisher,-serviceaccount,-serviceaccount-token,-statefulset,-ttl \
     --server-arg --disable-scheduler \
+    --server-arg --disable-cloud-controller \
+    --server-arg --disable-network-policy \
+    --server-arg --no-flannel \
     --wait 60
 
   # May want to write the kubeconfig file differently
