@@ -16,3 +16,4 @@ test.sql
 test-clusters
 .DS_Store
 todo
+k3d-testing
