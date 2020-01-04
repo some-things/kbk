@@ -343,6 +343,7 @@ createCluster() {
   # - Version?
   # - Maybe want to set cluster-cidr from what's detected in the bundle?
 
+  # TODO: Detect k3d version and modify table name/schema as needed.
   k3d create \
     --name "${CLUSTER_NAME}" \
     --workers 0 \
@@ -353,7 +354,9 @@ createCluster() {
     --server-arg --no-deploy=traefik \
     --server-arg --kube-apiserver-arg=event-ttl=168h0m0s \
     --server-arg --kube-controller-arg=disable-attach-detach-reconcile-sync \
-    --server-arg --kube-controller-arg=controllers=-attachdetach,-clusterrole-aggregation,-cronjob,-csrapproving,-csrcleaner,-csrsigning,-daemonset,-deployment,-disruption,-endpoint,-garbagecollector,-horizontalpodautoscaling,-job,-namespace,-nodeipam,-nodelifecycle,-persistentvolume-binder,-persistentvolume-expander,-podgc,-pv-protection,-pvc-protection,-replicaset,-replicationcontroller,-resourcequota,-root-ca-cert-publisher,-serviceaccount,-serviceaccount-token,-statefulset,-ttl
+    --server-arg --kube-controller-arg=controllers=-attachdetach,-clusterrole-aggregation,-cronjob,-csrapproving,-csrcleaner,-csrsigning,-daemonset,-deployment,-disruption,-endpoint,-garbagecollector,-horizontalpodautoscaling,-job,-namespace,-nodeipam,-nodelifecycle,-persistentvolume-binder,-persistentvolume-expander,-podgc,-pv-protection,-pvc-protection,-replicaset,-replicationcontroller,-resourcequota,-root-ca-cert-publisher,-serviceaccount,-serviceaccount-token,-statefulset,-ttl \
+    --server-arg --disable-scheduler \
+    --wait 60
 
   # May want to write the kubeconfig file differently
   cat <<EOF >"${STATE_FILE}"
@@ -404,11 +407,16 @@ EOF
           ITEMSTATE="$(echo "${ITEMLIST}" | awk 'FNR=='$ITEMCOUNT'')"
 
           echo "Building ${API_RESOURCE_NAME} state: ${ITEMNAME}"
+#           cat <<EOF >>"${API_RESOURCES_DIR}/.kbk/${FILENAME}.sql"
+# INSERT INTO key_value(name, value, create_revision, revision, ttl, version, del, id, old_revision) VALUES('/registry/$API_RESOURCE_NAME/$ITEMNAME', '$ITEMSTATE', $((RESOURCE_ID + 1)), $((RESOURCE_ID + 1)), 9999999999, 1, 0, $RESOURCE_ID, 0);
+
+# EOF
+
           cat <<EOF >>"${API_RESOURCES_DIR}/.kbk/${FILENAME}.sql"
-INSERT INTO key_value(name, value, create_revision, revision, ttl, version, del, id, old_revision) VALUES('/registry/$API_RESOURCE_NAME/$ITEMNAME', '$ITEMSTATE', $((RESOURCE_ID + 1)), $((RESOURCE_ID + 1)), 9999999999, 1, 0, $RESOURCE_ID, 0);
+INSERT INTO kine(id, name, created, deleted, create_revision, prev_revision, lease, value, old_value) VALUES($RESOURCE_ID, '/registry/$API_RESOURCE_NAME/$ITEMNAME', 1, 0, $((RESOURCE_ID + 1)), $((RESOURCE_ID + 2)), 0, '$ITEMSTATE', '$ITEMSTATE');
 
 EOF
-          ((RESOURCE_ID += 2))
+          ((RESOURCE_ID += 4))
           ((ITEMCOUNT--))
         done
       else
@@ -422,11 +430,17 @@ EOF
           ITEMSTATE="$(echo "${ITEMLIST}" | awk 'FNR=='$ITEMCOUNT'')"
 
           echo "Building ${API_RESOURCE_NAME} state: ${ITEMNAME}"
+#           cat <<EOF >>"${API_RESOURCES_DIR}/.kbk/${FILENAME}.sql"
+# INSERT INTO key_value(name, value, create_revision, revision, ttl, version, del, id, old_revision) VALUES('/registry/$API_RESOURCE_GROUP/$API_RESOURCE_NAME/$ITEMNAME', '$ITEMSTATE', $((RESOURCE_ID + 1)), $((RESOURCE_ID + 1)), 9999999999, 1, 0, $RESOURCE_ID, 0);
+
+# EOF
+
           cat <<EOF >>"${API_RESOURCES_DIR}/.kbk/${FILENAME}.sql"
-INSERT INTO key_value(name, value, create_revision, revision, ttl, version, del, id, old_revision) VALUES('/registry/$API_RESOURCE_GROUP/$API_RESOURCE_NAME/$ITEMNAME', '$ITEMSTATE', $((RESOURCE_ID + 1)), $((RESOURCE_ID + 1)), 9999999999, 1, 0, $RESOURCE_ID, 0);
+INSERT INTO kine(id, name, created, deleted, create_revision, prev_revision, lease, value, old_value) VALUES($RESOURCE_ID, '/registry/$API_RESOURCE_GROUP/$API_RESOURCE_NAME/$ITEMNAME', 1, 0, $((RESOURCE_ID + 1)), $((RESOURCE_ID + 2)), 0, '$ITEMSTATE', '$ITEMSTATE');
 
 EOF
-          ((RESOURCE_ID += 2))
+
+          ((RESOURCE_ID += 4))
           ((ITEMCOUNT--))
         done
       fi
@@ -443,11 +457,17 @@ EOF
           ITEMSTATE="$(echo "${ITEMLIST}" | awk 'FNR=='$ITEMCOUNT'')"
 
           echo "Building ${API_RESOURCE_NAME} state: ${NAMESPACE}/${ITEMNAME}"
+#           cat <<EOF >>"${API_RESOURCES_DIR}/.kbk/${FILENAME}.sql"
+# INSERT INTO key_value(name, value, create_revision, revision, ttl, version, del, id, old_revision) VALUES('/registry/$API_RESOURCE_NAME/$NAMESPACE/$ITEMNAME', '$ITEMSTATE', $((RESOURCE_ID + 1)), $((RESOURCE_ID + 1)), 9999999999, 1, 0, $RESOURCE_ID, 0);
+
+# EOF
+
           cat <<EOF >>"${API_RESOURCES_DIR}/.kbk/${FILENAME}.sql"
-INSERT INTO key_value(name, value, create_revision, revision, ttl, version, del, id, old_revision) VALUES('/registry/$API_RESOURCE_NAME/$NAMESPACE/$ITEMNAME', '$ITEMSTATE', $((RESOURCE_ID + 1)), $((RESOURCE_ID + 1)), 9999999999, 1, 0, $RESOURCE_ID, 0);
+INSERT INTO kine(id, name, created, deleted, create_revision, prev_revision, lease, value, old_value) VALUES($RESOURCE_ID, '/registry/$API_RESOURCE_NAME/$NAMESPACE/$ITEMNAME', 1, 0, $((RESOURCE_ID + 1)), $((RESOURCE_ID + 2)), 0, '$ITEMSTATE', '$ITEMSTATE');
 
 EOF
-          ((RESOURCE_ID += 2))
+
+          ((RESOURCE_ID += 4))
           ((ITEMCOUNT--))
         done
       else
@@ -462,11 +482,17 @@ EOF
           ITEMSTATE="$(echo "${ITEMLIST}" | awk 'FNR=='$ITEMCOUNT'')"
 
           echo "Building ${API_RESOURCE_NAME} state: ${NAMESPACE}/${ITEMNAME}"
+#           cat <<EOF >>"${API_RESOURCES_DIR}/.kbk/${FILENAME}.sql"
+# INSERT INTO key_value(name, value, create_revision, revision, ttl, version, del, id, old_revision) VALUES('/registry/$API_RESOURCE_GROUP/$API_RESOURCE_NAME/$NAMESPACE/$ITEMNAME', '$ITEMSTATE', $((RESOURCE_ID + 1)), $((RESOURCE_ID + 1)), 9999999999, 1, 0, $RESOURCE_ID, 0);
+
+# EOF
+
           cat <<EOF >>"${API_RESOURCES_DIR}/.kbk/${FILENAME}.sql"
-INSERT INTO key_value(name, value, create_revision, revision, ttl, version, del, id, old_revision) VALUES('/registry/$API_RESOURCE_GROUP/$API_RESOURCE_NAME/$NAMESPACE/$ITEMNAME', '$ITEMSTATE', $((RESOURCE_ID + 1)), $((RESOURCE_ID + 1)), 9999999999, 1, 0, $RESOURCE_ID, 0);
+INSERT INTO kine(id, name, created, deleted, create_revision, prev_revision, lease, value, old_value) VALUES($RESOURCE_ID, '/registry/$API_RESOURCE_GROUP/$API_RESOURCE_NAME/$NAMESPACE/$ITEMNAME', 1, 0, $((RESOURCE_ID + 1)), $((RESOURCE_ID + 2)), 0, '$ITEMSTATE', '$ITEMSTATE');
 
 EOF
-          ((RESOURCE_ID += 2))
+
+          ((RESOURCE_ID += 4))
           ((ITEMCOUNT--))
         done
       fi
@@ -486,7 +512,7 @@ EOF
   echo "${GREEN}Starting cluster.${RESET}"
   k3d start --name "${CLUSTER_NAME}"
 
-  sleep 5
+  sleep 10
 
   echo "${GREEN}Started cluster. Please set your kubeconfig with:${RESET}"
   echo "export KUBECONFIG=\"\$(k3d get-kubeconfig --name='$CLUSTER_NAME')\""

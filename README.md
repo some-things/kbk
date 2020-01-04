@@ -52,7 +52,7 @@ To use `kbk`, the following prerequisites must be installed:
 - [`jq`](https://github.com/stedolan/jq) for parsing JSON and as a dependency for `yq`
 - [`yq`](https://github.com/kislyuk/yq) for parsing YAML
 - [`docker`](https://www.docker.com/) for running the Kubernetes cluster components and as a dependency for `k3d`
-- [`k3d`](https://github.com/rancher/k3d) for managing the Kubernetes cluster's lifecycle
+- [`k3d`](https://github.com/rancher/k3d) for managing the Kubernetes cluster's lifecycle (Currently tested with `k3d` version v1.4.0)
 - [`sqlite3`](https://www.sqlite.org/cli.html) for interacting with the Kubernetes backend SQLite database
 - [`kubectl`](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for interacting with the Kubernetes cluster
 
@@ -383,7 +383,7 @@ kubectl get nodes
 
 And verify that all of the nodes you expect to see are present and that they are all in the `Ready` state.
 
-You may also want to view the logs associated with Kubernetes components. 
+You may also want to view the logs associated with Kubernetes components.
 
 <!-- Note that you can use `kbk cluster leaders` and `kbk get pods` to assist in identifying leaders and pod names. -->
 
